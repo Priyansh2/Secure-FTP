@@ -3,14 +3,14 @@ import sys
 import socket
 import threading
 import hashlib
+import math
+import time
+import json
 from pathlib import Path
 from struct import *
 from ipaddress import ip_address
 from random import randrange, getrandbits, sample
-import math
-import time
-import json
-# from sympy.ntheory import primefactors #slow for generating prime factors of 128 bit prime
+from helper import *
 from factorise import *
 
 # Disable 'print' calls
@@ -36,7 +36,8 @@ OP_CODES = {
     "SERVICEDONE": 60,
     "PUBKEY": 70,
     "SIGNEDMSG": 80,
-    "VERSTATUS": 90
+    "VERSTATUS": 90,
+    "EXITSTATUS": 100
 }
 
 MAX_SIZE = 80
@@ -145,19 +146,16 @@ def find_prime_factors(num, length=160):
 # get global parameters (p,q,alpha)
 
 
-def get_params():
+def get_params(LEN=LEN):
     pfs = set([])
     p = -1
     while(len(pfs) == 0):
         p = generate_prime_number(length=LEN)
-        # pfs = find_prime_factors(p-1, length=LEN//2)
-        # pfs = [num for num in primefactors(p-1) if in_range(num, length=LEN//2)] #import the dependency before using it
         pfs = [num for num in factorise(p-1) if in_range(num, length=LEN//2)]
-    # print(len(pfs))
     q = sample(pfs, 1)[0]
     assert p != -1 and (p-1) % q == 0
     while True:
-        g = randrange(2, p-1)
+        g = randrange(2, p-2)
         alpha = pow_mod(g, (p-1)//q, p)
         if alpha > 1:
             break
@@ -173,6 +171,7 @@ print(type(p), type(q), type(alpha))
 
 
 def get_params_test(k=100):
+    # Average time taken to do pf of 128-bit number on my laptop is 3 minutes
     c = 0
     for i in range(k):
         a = time.time()
@@ -184,83 +183,113 @@ def get_params_test(k=100):
 
 # get_params_test()
 
-# function to get the Casesar Cipher Encoding dictionary
+def generate_signature(message, global_params, client_keys):
+    print("\nGenerating Signature...\n")
+    p = global_params['p']
+    q = global_params['q']
+    alpha = global_params['alpha']
+    Xa, Ya = client_keys['private'], client_keys['public']
+    k = randrange(1, q)
+    e = pow_mod(alpha, k, p) % q
+    hsh = hashlib.sha1(message.encode()).hexdigest()
+    hsh_decimal = int(hsh, 16) % p
+    s = pow_mod(k, q-2, q) * (hsh_decimal % q + (Xa*e) % q) % q
+    s %= q
+    return (e, s)
 
 
-def get_encoding():
-    dict = {}
-    r_dict = {}  # reverse mapping
+def verify_signature(signature, message, global_params, client_public_key):
+    print("\nVerifying Signature...\n")
+    e_dash, s_dash = int(signature['e']), int(signature['s'])
+    p = global_params['p']
+    q = global_params['q']
+    alpha = global_params['alpha']
+    Ya = client_public_key
+    w = pow_mod(s_dash, q-2, q)
+    u = hashlib.sha1(message.encode()).hexdigest()
+    u_decimal = int(u, 16) % p
+    u = (u_decimal*w) % q
+    v = (e_dash*w) % q
+    e_star = (pow_mod(alpha, u, p) * pow_mod(Ya, v, p)) % p
+    e_star %= q
+    return e_star == e_dash
 
-    dict[' '] = 00
-    r_dict[0] = ' '
-    for i in range(65, 65 + 26):
-        dict[chr(i)] = i-64
-        r_dict[i-64] = chr(i)
 
-    dict[','] = 27
-    dict['.'] = 28
-    dict['?'] = 29
-    r_dict[27] = ','
-    r_dict[28] = '.'
-    r_dict[29] = '?'
+def signature_test():
+    message = "Hi! How are you ? I am using your service for past few months. I absolutely loved it and would definately recommend my colleagues. Appreciated all the hard work you putted in creating this wonderful service"
+    print(message)
+    blockPrint()
+    p, q, alpha = get_params(LEN=47)
+    enablePrint()
+    Xa = randrange(1, q)  # client's private key
+    Ya = pow_mod(alpha, Xa, p)  # client's public key
+    a = time.time()
+    print(p, q, alpha, Xa, Ya)
+    e, s = generate_signature(message, {'p': p, 'q': q, 'alpha': alpha}, {
+                              'private': Xa, 'public': Ya})
+    b = time.time()
+    print("Signature: ", e, s, "Time taken to generate signature: ", b-a)
+    print(verify_signature({'e': e, 's': s}, message,
+                           {'p': p, 'q': q, 'alpha': alpha}, Ya))
 
-    for i in range(48, 48 + 10):
-        dict[chr(i)] = i-18
-        r_dict[i-18] = chr(i)
-
-    for i in range(97, 97 + 26):
-        dict[chr(i)] = i-57
-        r_dict[i-57] = chr(i)
-
-    dict['!'] = 66
-    r_dict[66] = '!'
-    # print(dict)
-    # print(r_dict)
-    return (dict, r_dict)
+# signature_test()
 
 # encrypt the input string using the given key using Caesar Cipher
 
 
 def encrypt(string, key):
-    dict, r_dict = get_encoding()
-    keys = list(dict.keys())
-    # print(keys)
+    '''
+    Modified caesar cipher shift program that allows you to "encrypt"
+    any given ASCII string (txt file) using a custom key.
+    '''
+    key_str = str(key)
+    index = 0
+    max_index = len(key_str)
+    content = string
     out = ""
-    for char in string:
-        if char not in keys:
-            # print("Err: Invalid character")
-            return -1
-        else:
-            now = dict[char]
-            fin = ((now + key) % 67)
-            # print(fin)
-            out += r_dict[fin]
-    return out
+    for i in content:
+        new_line = ""
+        for letter in i:
+            c_key = key_str[index % max_index]
+            c_letter = ""
+            if ord(c_key)+ord(letter) > 126:
+                c_letter = chr(ord(c_key)+ord(letter)-126)
+            else:
+                c_letter = chr(ord(c_key) + ord(letter))
+            new_line += c_letter
+            index += 1
+        out += new_line
+    return str(out)
 
 # Decrypt the input string using the given key using Caesar Cipher
 
 
 def decrypt(string, key):
-    dict, r_dict = get_encoding()
-    keys = list(dict.keys())
-    # print(keys)
+    key_str = str(key)
+    content = string
+    index = 0
+    max_index = len(key_str)
     out = ""
-    for char in string:
-        if char not in keys:
-            # print("Err: Invalid character")
-            return -1
-        else:
-            now = dict[char]
-            fin = ((now - key) % 67)
-            out += r_dict[fin % 67]
-    return out
-
+    for i in content:
+        new_line = ""
+        for letter in i:
+            c_key = key_str[index % max_index]
+            c_letter = ""
+            if ord(letter) - ord(c_key) < 0:
+                c_letter = chr(ord(letter) - ord(c_key) + 126)
+            else:
+                c_letter = chr(ord(letter) - ord(c_key))
+            new_line += c_letter
+            index += 1
+        out += new_line
+    return str(out)
 
 # string = "Hello .World!"
 # key = 112
 # enc = encrypt(string, key)
 # print("encrypted: ", enc)
 # print(decrypt(enc, key))
+
 
 def display(out, opcode=70):
     '''"LOGINCREAT": 10,
@@ -276,30 +305,41 @@ def display(out, opcode=70):
     if opcode == 10:
         temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'],
                 'ID': out['ID'], 'password': out['password'], 'dummy': out['dummy']}
+
     if opcode == 20:
         pass
+
     if opcode == 30:
         temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'],
                 'ID': out['ID'], 'password': out['password']}
+
     if opcode == 40:
         pass
+
     if opcode == 50:
         temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'],
                 'ID': out['ID'], 'file': out['file']}
+
     if opcode == 60:
         temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'], 'buf': out["buf"],
                 'plaintext': out['plaintext'], 'file': out['file'], 'status': 'SUCCESSFULL'}
         if out['status'] == -1:
             temp["status"] = "UNSUCCESSFULL"
+
     if opcode == 70:
         temp = {'p': out['p'], 'q': out['q'],
                 'alpha': out['alpha'], 'Y': out['y']}
+
     if opcode == 80:
-        pass
+        temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'], 'ID': out['ID'],
+                'plaintext': out['plaintext'], 'e': out['e'], 's': out['s']}
+
     if opcode == 90:
         pass
+
     if opcode == 100:
         pass
+
     return temp
 
 # function to unpack the packet of fixed size with different parameters

@@ -3,15 +3,14 @@ import sys
 import socket
 import threading
 import hashlib
+import math
+import time
+import json
 from pathlib import Path
 from struct import *
 from ipaddress import ip_address
 from random import randrange, getrandbits, sample
-import math
-import time
-import json
 from helper import *
-# from sympy.ntheory import primefactors #slow for generating prime factors of 128 bit prime
 from factorise import *
 
 
@@ -83,7 +82,30 @@ def threaded(conn, addr):
             print("Closing Connection with ==> ", d_addr)
             break
         print("Received:", end=" ")
-        if msg['opcode'] == OP_CODES["LOGINCREAT"]:
+        if msg['opcode'] == OP_CODES['EXITSTATUS']:
+            print("EXITSTATUS from ==> ", d_addr)
+            break
+        elif msg['opcode'] == OP_CODES['SIGNEDMSG']:
+            print("SIGNEDMSG ==>", end=" ")
+            ID = decrypt(msg['ID'], key)
+            chat_msg = decrypt(msg['plaintext'], key)
+            print({"ID": ID, "Message": chat_msg}, " FROM ==> ", d_addr)
+            E = msg['e']
+            S = msg['s']
+            signature = {'e': E, 's': S}
+            global_params = {'p': p, 'q': q, "alpha": alpha}
+            client_public_key = Ya
+            ver_status = verify_signature(
+                signature, chat_msg, global_params, client_public_key)
+            msg = create_message(s_addr=s_addr, d_addr=d_addr,
+                                 opcode=OP_CODES['VERSTATUS'], status=int(ver_status))
+            if ver_status:
+                print("Message verified!!. Sent VERSTATUS ==> ", d_addr)
+            else:
+                print("Message verfication failed!!. Sent VERSTATUS ==> ", d_addr)
+            conn.sendall(msg)
+
+        elif msg['opcode'] == OP_CODES["LOGINCREAT"]:
             print("LOGINCREAT ==>", end=" ")
             ID = decrypt(msg['ID'], key)
             password = decrypt(msg['password'], key)
@@ -146,7 +168,7 @@ def threaded(conn, addr):
                 f = open(file)
                 print("Requested file found!!. Transferring... ==> ", d_addr)
                 lim = 1024  # 1024 bytes of file at a time to client
-                #cnt = 0
+                cnt = 1
                 while True:
                     if filesize < 1024:
                         lim = -1
@@ -155,14 +177,13 @@ def threaded(conn, addr):
                         #print("DEBUG: REACHED!!!!!", cnt)
                         break
                     msg = create_message(
-                        s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['SERVICEDONE'], file=filename, buf=c, status=0)
+                        s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['SERVICEDONE'], file=filename, buf=c, status=0, plaintext="Fragment"+str(cnt))
                     conn.sendall(msg)
-                    #cnt += 1
+                    cnt += 1
                 msg = create_message(
                     s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['SERVICEDONE'], file=filename, status=1, plaintext="Thank you for using our service and have a nice day!")
                 conn.sendall(msg)
                 print("File transfer completed!!")
-
     conn.close()
 
 

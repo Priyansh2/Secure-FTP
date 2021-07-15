@@ -3,15 +3,14 @@ import sys
 import socket
 import threading
 import hashlib
+import math
+import time
+import json
 from pathlib import Path
 from struct import *
 from ipaddress import ip_address
 from random import randrange, getrandbits, sample
-import math
-import time
-import json
 from helper import *
-# from sympy.ntheory import primefactors #slow for generating prime factors of 128 bit prime
 from factorise import *
 
 
@@ -106,6 +105,35 @@ while True:
             print('Successfully Logged in as: ', decrypt(idx, key))
             logged_user = decrypt(idx, key)
 
+    elif action == "chat":
+        if logged_user == "":
+            print("Unable to chat. Login required!!")
+            continue
+        message = input('Enter the message to send: ')
+        if len(message) > MAX_LEN:
+            print("Message length exceeded!!. Choose small messsage (<= 1024 chars)")
+            continue
+        E, S = generate_signature(message, {'p': p, 'q': q, 'alpha': alpha}, {
+            'private': Xa, 'public': Ya})
+        S = str(S)
+        message = encrypt(message, key)
+        idx = encrypt(logged_user, key)
+        msg = create_message(s_addr=s_addr, d_addr=d_addr,
+                             opcode=OP_CODES['SIGNEDMSG'], ID=idx, e=E, s=S, plaintext=message)
+
+        print("Sent: SIGNEDMSG ==> ", display(
+            unpack_message(msg), opcode=OP_CODES['SIGNEDMSG']))
+        s.sendall(msg)
+        # receiving verification status from the server
+        msg = s.recv(calcsize(FORMAT))
+        msg = unpack_message(msg)
+        print("Received: VERSTATUS ==>", end=" ")
+        if msg['status'] == 1:
+            print("SUCCESSFULL")
+            print("Successfully verified message!!")
+        else:
+            print("UNSUCCESSFULL (Message verfication failed!!)")
+
     elif action == "getfile":
         if logged_user == "":
             print("Unable to request file. Login required!!")
@@ -144,15 +172,19 @@ while True:
                 print("UNSUCCESSFULL (Requested file couldn't transmitted!!)")
                 continue
             print("SUCCESSFULL")
-            print("Requested file transmitted successfully!!")
+            print("Sucessfully transmitted requested file!!")
 
     elif action == "quit" or action == "exit":
+        msg = create_message(s_addr=s_addr, d_addr=d_addr,
+                             opcode=OP_CODES['EXITSTATUS'])
+        s.sendall(msg)
         exit()
 
     elif action == "logout":
         logged_user = ""
-        print('Closing session... Logout Successfull!!')
+        print('Closing session... Logout successfull!!')
+
     else:
         print("No such action!!")
         print("Choose one among the below actions:")
-        print("""1. login\n2. signup\n3. getfile\n4. logout\n5. quit/exit""")
+        print("""1. login\n2. signup\n3. chat\n4. getfile\n5. logout\n6. quit/exit""")
