@@ -134,7 +134,7 @@ while True:
         else:
             print("UNSUCCESSFULL (Message verfication failed!!)")
 
-    elif action == "getfile":
+    elif action == "download":
         if logged_user == "":
             print("Unable to request file. Login required!!")
             continue
@@ -187,4 +187,4 @@ while True:
     else:
         print("No such action!!")
         print("Choose one among the below actions:")
-        print("""1. login\n2. signup\n3. chat\n4. getfile\n5. logout\n6. quit/exit""")
+        print("""1. login\n2. signup\n3. chat\n4. download\n5. logout\n6. quit/exit""")
