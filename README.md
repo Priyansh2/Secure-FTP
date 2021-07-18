@@ -11,7 +11,7 @@ Run server :- python server.py
 Run client :- python client.py    
 ```
 
-# Features
+# Project Scope
 * Multiple client support with threading 
 * Command-line interface with options: ``signup``, ``login``, ``chat``, ``download``
 * Implemented authentic, secure file transfer system with Diffie-Hellmann key exchange protocol, modified Caesar Cipher and Digital Signature Algorithm
