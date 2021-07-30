@@ -20,7 +20,7 @@ Run client :- python client.py
 
 # TODO
 * MD5 checksum to handle file transfer errors.
-* ``Download`` feature for different file formats (audio, video etc. ) including directories
-* Data compression and archiving 
+* Directory ``Download`` 
 * ``Upload`` feature to upload any kind of file and folders
+* Data compression and archiving 
 * Experiment with other better encryption standards

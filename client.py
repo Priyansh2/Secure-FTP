@@ -1,17 +1,20 @@
-import os
-import sys
-import socket
-import threading
 import hashlib
-import math
-import time
 import json
-from pathlib import Path
-from struct import *
-from ipaddress import ip_address
-from random import randrange, getrandbits, sample
-from helper import *
+import math
+import os
+import socket
+import sys
+import threading
+import time
+
 from factorise import *
+from helper import *
+from ipaddress import ip_address
+from pathlib import Path
+from random import getrandbits
+from random import randrange
+from random import sample
+from struct import *
 
 
 def get_ip():
@@ -20,7 +23,7 @@ def get_ip():
 
 
 HOST = '127.0.0.1'  # The server's hostname or IP address
-PORT = 65432        # The port used by the server
+PORT = 65432  # The port used by the server
 s_addr = get_ip()
 d_addr = HOST
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -32,11 +35,11 @@ Xa = randrange(1, q)  # client's private key
 Ya = pow_mod(alpha, Xa, p)  # client's public key
 
 # Sending public key tuple (Ya, p,q,alpha) to server
-msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                     opcode=OP_CODES['PUBKEY'], y=Ya, p=p, q=q, alpha=alpha)
+msg = create_message(
+    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['PUBKEY'], y=Ya, p=p, q=q, alpha=alpha
+)
 s.sendall(msg)
-print("Send: PUBKEY ==> ", display(
-    unpack_message(msg), opcode=OP_CODES['PUBKEY']))
+print("Send: PUBKEY ==> ", display(unpack_message(msg), opcode=OP_CODES['PUBKEY']))
 
 # Receiving public key (Yb) from server
 msg = s.recv(calcsize(FORMAT))
@@ -54,29 +57,36 @@ while True:
         action = input('> ')
     else:
         action = input(logged_user + '> ')
-
+    action = action.strip()
     if action == "signup":
         user_id = input('Enter User ID: ')
         user_password = input('Enter User password: ')
         idx = encrypt(user_id, key)
         pwd = encrypt(user_password, key)
-        msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                             opcode=OP_CODES['LOGINCREAT'], ID=idx, password=pwd, dummy=encrypt(str(qa), key))
-        if(msg == "Err"):
+        msg = create_message(
+            s_addr=s_addr,
+            d_addr=d_addr,
+            opcode=OP_CODES['LOGINCREAT'],
+            ID=idx,
+            password=pwd,
+            dummy=encrypt(str(qa), key),
+        )
+        if msg == "Err":
             continue
-        print("Sent: LOGINCREAT ==> ", display(
-            unpack_message(msg), OP_CODES['LOGINCREAT']))
+        print(
+            "Sent: LOGINCREAT ==> ",
+            display(unpack_message(msg), OP_CODES['LOGINCREAT']),
+        )
         s.sendall(msg)
         msg = s.recv(calcsize(FORMAT))
         msg = unpack_message(msg)
         print("Received: LOGINREPLY ==>", end=" ")
         if msg['status'] == 0:
             print("UNSUCCESSFULL")
-            print('UserID already exists!!: ', decrypt(idx, key))
+            print('UserID already exists!!: ', user_id)
         else:
             print("SUCCESSFULL")
-            print('SignUp Successfull!!. You can now login with ID: ',
-                  decrypt(idx, key))
+            print('SignUp Successfull!!. You can now login with ID: ', user_id)
 
     elif action == "login":
         if logged_user != "":
@@ -86,12 +96,19 @@ while True:
         user_password = input('Enter User Password: ')
         idx = encrypt(user_id, key)
         pwd = encrypt(user_password, key)
-        msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                             opcode=OP_CODES['AUTHREQUEST'], ID=idx, password=pwd)
-        if(msg == "Err"):
+        msg = create_message(
+            s_addr=s_addr,
+            d_addr=d_addr,
+            opcode=OP_CODES['AUTHREQUEST'],
+            ID=idx,
+            password=pwd,
+        )
+        if msg == "Err":
             continue
-        print("Sent: AUTHREQUEST ==> ", display(
-            unpack_message(msg), opcode=OP_CODES['AUTHREQUEST']))
+        print(
+            "Sent: AUTHREQUEST ==> ",
+            display(unpack_message(msg), opcode=OP_CODES['AUTHREQUEST']),
+        )
         s.sendall(msg)
         msg = s.recv(calcsize(FORMAT))
         msg = unpack_message(msg)
@@ -102,8 +119,8 @@ while True:
             print("UNSUCCESSFULL (Password incorrect!!)")
         else:
             print("SUCCESSFULL")
-            print('Successfully Logged in as: ', decrypt(idx, key))
-            logged_user = decrypt(idx, key)
+            print('Successfully Logged in as: ', user_id)
+            logged_user = user_id
 
     elif action == "chat":
         if logged_user == "":
@@ -113,16 +130,26 @@ while True:
         if len(message) > MAX_LEN:
             print("Message length exceeded!!. Choose small messsage (<= 1024 chars)")
             continue
-        E, S = generate_signature(message, {'p': p, 'q': q, 'alpha': alpha}, {
-            'private': Xa, 'public': Ya})
+        E, S = generate_signature(
+            message, {'p': p, 'q': q, 'alpha': alpha}, {'private': Xa, 'public': Ya}
+        )
         S = str(S)
         message = encrypt(message, key)
         idx = encrypt(logged_user, key)
-        msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                             opcode=OP_CODES['SIGNEDMSG'], ID=idx, e=E, s=S, plaintext=message)
+        msg = create_message(
+            s_addr=s_addr,
+            d_addr=d_addr,
+            opcode=OP_CODES['SIGNEDMSG'],
+            ID=idx,
+            e=E,
+            s=S,
+            plaintext=message,
+        )
 
-        print("Sent: SIGNEDMSG ==> ", display(
-            unpack_message(msg), opcode=OP_CODES['SIGNEDMSG']))
+        print(
+            "Sent: SIGNEDMSG ==> ",
+            display(unpack_message(msg), opcode=OP_CODES['SIGNEDMSG']),
+        )
         s.sendall(msg)
         # receiving verification status from the server
         msg = s.recv(calcsize(FORMAT))
@@ -139,33 +166,45 @@ while True:
             print("Unable to request file. Login required!!")
             continue
         filepath = input('Enter file path on server: ')
+        filepath = encrypt(filepath, key)
         idx = encrypt(logged_user, key)
-        msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                             opcode=OP_CODES['SERVICEREQUEST'], ID=idx, file=filepath)
-        if(msg == "Err"):
+        msg = create_message(
+            s_addr=s_addr,
+            d_addr=d_addr,
+            opcode=OP_CODES['SERVICEREQUEST'],
+            ID=idx,
+            file=filepath,
+        )
+        if msg == "Err":
             continue
-        print("Sent: SERVICEREQUEST ==> ", display(
-            unpack_message(msg), opcode=OP_CODES['SERVICEREQUEST']))
+        print(
+            "Sent: SERVICEREQUEST ==> ",
+            display(unpack_message(msg), opcode=OP_CODES['SERVICEREQUEST']),
+        )
         s.sendall(msg)
         msg = s.recv(calcsize(FORMAT))
         msg = unpack_message(msg)
         print("Received: SERVICEDONE ==>", end=" ")
-        if(msg['status'] == -1):
+        if msg['status'] == -1:
             print("UNSUCCESSFULL (File does not exists on server!!)")
             continue
         else:
-            f = open(msg['file'], 'w')
-            f.write(msg['buf'])
+            file = decrypt(msg['file'], key)
+            # file_content = decrypt(msg['buf'], key)
+            file_content = msg['buf']
+            f = open(file, 'wb')
+            f.write(file_content)
             print(display(msg, opcode=OP_CODES['SERVICEDONE']))
             last_msg = ""
             while msg['status'] == 0:
                 msg = s.recv(calcsize(FORMAT))
                 msg = unpack_message(msg)
-                f.write(msg['buf'])
                 print(display(msg, opcode=OP_CODES['SERVICEDONE']))
-                last_msg = msg
+                if msg['status'] == 0:
+                    # file_content = decrypt(msg['buf'], key)
+                    file_content = msg['buf']
+                    f.write(file_content)
             f.close()
-            msg = last_msg
             try:
                 assert msg['status'] == 1
             except AssertionError:
@@ -175,8 +214,9 @@ while True:
             print("Sucessfully transmitted requested file!!")
 
     elif action == "quit" or action == "exit":
-        msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                             opcode=OP_CODES['EXITSTATUS'])
+        msg = create_message(
+            s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['EXITSTATUS']
+        )
         s.sendall(msg)
         exit()
 

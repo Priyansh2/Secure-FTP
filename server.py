@@ -1,17 +1,20 @@
-import os
-import sys
-import socket
-import threading
 import hashlib
-import math
-import time
 import json
-from pathlib import Path
-from struct import *
-from ipaddress import ip_address
-from random import randrange, getrandbits, sample
-from helper import *
+import math
+import os
+import socket
+import sys
+import threading
+import time
+
 from factorise import *
+from helper import *
+from ipaddress import ip_address
+from pathlib import Path
+from random import getrandbits
+from random import randrange
+from random import sample
+from struct import *
 
 
 # password file dictionary on server
@@ -40,6 +43,7 @@ def check_creds(id, password):
         return 1
     return -1
 
+
 # thread fuction for each client connnected
 
 
@@ -49,16 +53,20 @@ def threaded(conn, addr):
 
     # receiving public key tuple (Ya, p,q, alpha) from client
 
-    #msg = conn.recv(calcsize(FORMAT))
-    #msg = unpack_message(msg)
+    # msg = conn.recv(calcsize(FORMAT))
+    # msg = unpack_message(msg)
     try:
         msg = conn.recv(calcsize(FORMAT))
         msg = unpack_message(msg)
     except:
         print("Closing Connection with ==> ", d_addr)
         conn.close()
-    print("Received: PUBKEY ==> ", display(
-        msg, opcode=OP_CODES['PUBKEY']), " from ==> ", d_addr)
+    print(
+        "Received: PUBKEY ==> ",
+        display(msg, opcode=OP_CODES['PUBKEY']),
+        " from ==> ",
+        d_addr,
+    )
     Ya, p, q, alpha = msg['y'], msg['p'], msg['q'], msg['alpha']
 
     # computing Yb from global (p,q,alpha) received from client
@@ -66,8 +74,7 @@ def threaded(conn, addr):
     Yb = pow_mod(alpha, Xb, p)  # server's public key
 
     # Sending public key (Yb) to client
-    msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                         opcode=OP_CODES['PUBKEY'], y=Yb)
+    msg = create_message(s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['PUBKEY'], y=Yb)
     print("Sent: PUBKEY ==> ", {"Yb": Yb}, " to ==> ", d_addr)
     conn.sendall(msg)
     # computing the shared session key with client
@@ -96,9 +103,14 @@ def threaded(conn, addr):
             global_params = {'p': p, 'q': q, "alpha": alpha}
             client_public_key = Ya
             ver_status = verify_signature(
-                signature, chat_msg, global_params, client_public_key)
-            msg = create_message(s_addr=s_addr, d_addr=d_addr,
-                                 opcode=OP_CODES['VERSTATUS'], status=int(ver_status))
+                signature, chat_msg, global_params, client_public_key
+            )
+            msg = create_message(
+                s_addr=s_addr,
+                d_addr=d_addr,
+                opcode=OP_CODES['VERSTATUS'],
+                status=int(ver_status),
+            )
             if ver_status:
                 print("Message verified!!. Sent VERSTATUS ==> ", d_addr)
             else:
@@ -110,8 +122,7 @@ def threaded(conn, addr):
             ID = decrypt(msg['ID'], key)
             password = decrypt(msg['password'], key)
             dummy = decrypt(msg['dummy'], key)
-            print({"ID": ID, "password": password,
-                   "qa": dummy}, " FROM ==> ", d_addr)
+            print({"ID": ID, "password": password, "qa": dummy}, " FROM ==> ", d_addr)
             salt = getrandbits(13)  # getting a random salt
             password += str(salt) + str(dummy)
             # using sha-1 hash function
@@ -119,15 +130,26 @@ def threaded(conn, addr):
             # add to password table
             if ID in PASSWORD_FILE.keys():
                 msg = create_message(
-                    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['LOGINREPLY'], status=0)
+                    s_addr=s_addr,
+                    d_addr=d_addr,
+                    opcode=OP_CODES['LOGINREPLY'],
+                    status=0,
+                )
                 print("UserID already exists!!. Sent LOGINREPLY ==> ", d_addr)
                 conn.sendall(msg)
             else:
-                PASSWORD_FILE[ID] = {'password': password,
-                                     'prime': int(dummy), 'salt': salt}
+                PASSWORD_FILE[ID] = {
+                    'password': password,
+                    'prime': int(dummy),
+                    'salt': salt,
+                }
                 display_table()
                 msg = create_message(
-                    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['LOGINREPLY'], status=1)
+                    s_addr=s_addr,
+                    d_addr=d_addr,
+                    opcode=OP_CODES['LOGINREPLY'],
+                    status=1,
+                )
                 print("UserID created!!. Sent LOGINREPLY ==> ", d_addr)
                 conn.sendall(msg)
 
@@ -139,14 +161,19 @@ def threaded(conn, addr):
             # check in table
             if ID not in PASSWORD_FILE.keys():
                 msg = create_message(
-                    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['AUTHREPLY'], status=0)
+                    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['AUTHREPLY'], status=0
+                )
                 print("UserID does not exists!!. Sent AUTHREPLY ==> ", d_addr)
                 conn.sendall(msg)
             else:
                 status = check_creds(ID, password)
                 msg = create_message(
-                    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['AUTHREPLY'], status=status)
-                if(status == 1):
+                    s_addr=s_addr,
+                    d_addr=d_addr,
+                    opcode=OP_CODES['AUTHREPLY'],
+                    status=status,
+                )
+                if status == 1:
                     print("Request granted!!. Sent AUTHREPLY ==> ", d_addr)
                 else:
                     print("Incorrect Password!!. Sent AUTHREPLY ==> ", d_addr)
@@ -155,17 +182,21 @@ def threaded(conn, addr):
         elif msg['opcode'] == OP_CODES['SERVICEREQUEST']:
             print("SERVICEREQUEST ==>", end=" ")
             ID = decrypt(msg['ID'], key)
-            file = msg['file']
-            filename = Path(file).name
-            print({"ID": ID, "filename": filename}, " FROM ==> ", d_addr)
+            file = decrypt(msg['file'], key)
+            filename = os.path.basename(file)
+            print({"ID": ID, "file": file}, " FROM ==> ", d_addr)
             if not os.path.isfile(file):
                 msg = create_message(
-                    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['SERVICEDONE'],  status=-1)
+                    s_addr=s_addr,
+                    d_addr=d_addr,
+                    opcode=OP_CODES['SERVICEDONE'],
+                    status=-1,
+                )
                 print("File does not exists on server!!. Sent SERVICEDONE ==> ", d_addr)
                 conn.sendall(msg)
             else:
                 filesize = os.path.getsize(file)
-                f = open(file)
+                f = open(file, "rb")
                 print("Requested file found!!. Transferring... ==> ", d_addr)
                 lim = 1024  # 1024 bytes of file at a time to client
                 cnt = 1
@@ -174,21 +205,35 @@ def threaded(conn, addr):
                         lim = -1
                     c = f.read(lim)
                     if not c:
-                        #print("DEBUG: REACHED!!!!!", cnt)
+                        # print("DEBUG: REACHED!!!!!", cnt)
                         break
                     msg = create_message(
-                        s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['SERVICEDONE'], file=filename, buf=c, status=0, plaintext="Fragment"+str(cnt))
+                        s_addr=s_addr,
+                        d_addr=d_addr,
+                        opcode=OP_CODES['SERVICEDONE'],
+                        file=encrypt(filename, key),
+                        buf=c,
+                        status=0,
+                        plaintext=encrypt("Fragment" + str(cnt), key),
+                    )
                     conn.sendall(msg)
                     cnt += 1
+                thankyou_msg = "Thank you for using our service and have a nice day!"
                 msg = create_message(
-                    s_addr=s_addr, d_addr=d_addr, opcode=OP_CODES['SERVICEDONE'], file=filename, status=1, plaintext="Thank you for using our service and have a nice day!")
+                    s_addr=s_addr,
+                    d_addr=d_addr,
+                    opcode=OP_CODES['SERVICEDONE'],
+                    file=encrypt(filename, key),
+                    status=1,
+                    plaintext=encrypt(thankyou_msg, key),
+                )
                 conn.sendall(msg)
                 print("File transfer completed!!")
     conn.close()
 
 
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
-PORT = 65432        # Port to listen on (non-privileged ports are > 1023)
+PORT = 65432  # Port to listen on (non-privileged ports are > 1023)
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((HOST, PORT))
@@ -197,6 +242,6 @@ s.listen()
 while True:
     conn, addr = s.accept()
     print('Connected! ==> ', addr)
-    t = threading.Thread(target=threaded, args=(conn, addr,))
+    t = threading.Thread(target=threaded, args=(conn, addr))
     t.start()
 s.close()

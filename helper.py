@@ -1,23 +1,27 @@
-import os
-import sys
-import socket
-import threading
 import hashlib
-import math
-import time
 import json
-from pathlib import Path
-from struct import *
-from ipaddress import ip_address
-from random import randrange, getrandbits, sample
-from helper import *
+import math
+import os
+import socket
+import sys
+import threading
+import time
+
 from factorise import *
+from helper import *
+from ipaddress import ip_address
+from pathlib import Path
+from random import getrandbits
+from random import randrange
+from random import sample
+from struct import *
 
 # Disable 'print' calls
 
 
 def blockPrint():
     sys.stdout = open(os.devnull, 'w')
+
 
 # Restore 'print' calls
 
@@ -37,7 +41,7 @@ OP_CODES = {
     "PUBKEY": 70,
     "SIGNEDMSG": 80,
     "VERSTATUS": 90,
-    "EXITSTATUS": 100
+    "EXITSTATUS": 100,
 }
 
 MAX_SIZE = 80
@@ -53,19 +57,19 @@ def pow_mod(a, b, m):
     a = a % m
     while b:
         if b & 1:
-            res = res*a % m
-        a = a*a % m
+            res = res * a % m
+        a = a * a % m
         b = b >> 1
     return res
 
 
 def check_composite(n, a, d, r):
     x = pow_mod(a, d, n)
-    if x == 1 or x == n-1:
+    if x == 1 or x == n - 1:
         return False
     for i in range(1, r):
         x = x * x % n
-        if x == n-1:
+        if x == n - 1:
             return False
     return True
 
@@ -73,7 +77,7 @@ def check_composite(n, a, d, r):
 def is_prime(n):
     if n < 2:
         return False
-    r, d = 0, n-1
+    r, d = 0, n - 1
     while (d & 1) == 0:
         d = d >> 1
         r += 1
@@ -83,6 +87,7 @@ def is_prime(n):
         if check_composite(n, a, d, r):
             return False
     return True
+
 
 # helper function to get random odd number bits as prime candidates
 
@@ -94,6 +99,7 @@ def generate_prime_candidate(length):
     p |= (1 << length - 1) | 1
     return p
 
+
 # helper function to generate nbit prime number
 
 
@@ -103,6 +109,7 @@ def generate_prime_number(length=1024):
     while not is_prime(p):
         p = generate_prime_candidate(length)
     return p
+
 
 # test function to check average runtime of random nbit prime generator
 
@@ -114,25 +121,27 @@ def generator_test(k=100):
         a = time.time()
         prime = generate_prime_number()
         b = time.time()
-        c += b-a
-    print("Average time: ", c/k)
+        c += b - a
+    print("Average time: ", c / k)
 
 
 # generator_test()
 
+
 def in_range(num, length):
-    if num > (1 << length-1) and num < (1 << length):
+    if num > (1 << length - 1) and num < (1 << length):
         return True
     return False
+
 
 # function to find prime factors of a number
 
 
 def find_prime_factors(num, length=160):
     pf = set([])
-    while(num % 2 == 0):
+    while num % 2 == 0:
         num //= 2
-    for i in range(3, int(math.sqrt(num))+1):
+    for i in range(3, int(math.sqrt(num)) + 1):
         while num % i == 0:
             if in_range(i, length):
                 pf.add(i)
@@ -149,14 +158,14 @@ def find_prime_factors(num, length=160):
 def get_params(LEN=LEN):
     pfs = set([])
     p = -1
-    while(len(pfs) == 0):
+    while len(pfs) == 0:
         p = generate_prime_number(length=LEN)
-        pfs = [num for num in factorise(p-1) if in_range(num, length=LEN//2)]
+        pfs = [num for num in factorise(p - 1) if in_range(num, length=LEN // 2)]
     q = sample(pfs, 1)[0]
-    assert p != -1 and (p-1) % q == 0
+    assert p != -1 and (p - 1) % q == 0
     while True:
-        g = randrange(2, p-2)
-        alpha = pow_mod(g, (p-1)//q, p)
+        g = randrange(2, p - 2)
+        alpha = pow_mod(g, (p - 1) // q, p)
         if alpha > 1:
             break
     return (p, q, alpha)
@@ -177,11 +186,12 @@ def get_params_test(k=100):
         a = time.time()
         p, q, alpha = get_params()
         b = time.time()
-        c += b-a
-    print("Average time: ", c/k)
+        c += b - a
+    print("Average time: ", c / k)
 
 
 # get_params_test()
+
 
 def generate_signature(message, global_params, client_keys):
     print("\nGenerating Signature...\n")
@@ -193,7 +203,7 @@ def generate_signature(message, global_params, client_keys):
     e = pow_mod(alpha, k, p) % q
     hsh = hashlib.sha1(message.encode()).hexdigest()
     hsh_decimal = int(hsh, 16) % p
-    s = pow_mod(k, q-2, q) * (hsh_decimal % q + (Xa*e) % q) % q
+    s = pow_mod(k, q - 2, q) * (hsh_decimal % q + (Xa * e) % q) % q
     s %= q
     return (e, s)
 
@@ -205,18 +215,22 @@ def verify_signature(signature, message, global_params, client_public_key):
     q = global_params['q']
     alpha = global_params['alpha']
     Ya = client_public_key
-    w = pow_mod(s_dash, q-2, q)
+    w = pow_mod(s_dash, q - 2, q)
     u = hashlib.sha1(message.encode()).hexdigest()
     u_decimal = int(u, 16) % p
-    u = (u_decimal*w) % q
-    v = (e_dash*w) % q
+    u = (u_decimal * w) % q
+    v = (e_dash * w) % q
     e_star = (pow_mod(alpha, u, p) * pow_mod(Ya, v, p)) % p
     e_star %= q
     return e_star == e_dash
 
 
 def signature_test():
-    message = "Hi! How are you ? I am using your service for past few months. I absolutely loved it and would definately recommend my colleagues. Appreciated all the hard work you putted in creating this wonderful service"
+    message = (
+        "Hi! How are you ? I am using your service for past few months. I absolutely"
+        " loved it and would definately recommend my colleagues. Appreciated all the"
+        " hard work you putted in creating this wonderful service"
+    )
     print(message)
     blockPrint()
     p, q, alpha = get_params(LEN=47)
@@ -225,12 +239,17 @@ def signature_test():
     Ya = pow_mod(alpha, Xa, p)  # client's public key
     a = time.time()
     print(p, q, alpha, Xa, Ya)
-    e, s = generate_signature(message, {'p': p, 'q': q, 'alpha': alpha}, {
-                              'private': Xa, 'public': Ya})
+    e, s = generate_signature(
+        message, {'p': p, 'q': q, 'alpha': alpha}, {'private': Xa, 'public': Ya}
+    )
     b = time.time()
-    print("Signature: ", e, s, "Time taken to generate signature: ", b-a)
-    print(verify_signature({'e': e, 's': s}, message,
-                           {'p': p, 'q': q, 'alpha': alpha}, Ya))
+    print("Signature: ", e, s, "Time taken to generate signature: ", b - a)
+    print(
+        verify_signature(
+            {'e': e, 's': s}, message, {'p': p, 'q': q, 'alpha': alpha}, Ya
+        )
+    )
+
 
 # signature_test()
 
@@ -252,14 +271,15 @@ def encrypt(string, key):
         for letter in i:
             c_key = key_str[index % max_index]
             c_letter = ""
-            if ord(c_key)+ord(letter) > 126:
-                c_letter = chr(ord(c_key)+ord(letter)-126)
+            if ord(c_key) + ord(letter) > 126:
+                c_letter = chr(ord(c_key) + ord(letter) - 126)
             else:
                 c_letter = chr(ord(c_key) + ord(letter))
             new_line += c_letter
             index += 1
         out += new_line
     return str(out)
+
 
 # Decrypt the input string using the given key using Caesar Cipher
 
@@ -284,6 +304,7 @@ def decrypt(string, key):
         out += new_line
     return str(out)
 
+
 # string = "Hello .World!"
 # key = 112
 # enc = encrypt(string, key)
@@ -303,36 +324,60 @@ def display(out, opcode=70):
     "VERSTATUS": 90'''
     temp = {}
     if opcode == 10:
-        temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'],
-                'ID': out['ID'], 'password': out['password'], 'dummy': out['dummy']}
+        temp = {
+            's_addr': out['s_addr'],
+            'd_addr': out['d_addr'],
+            'ID': out['ID'],
+            'password': out['password'],
+            'dummy': out['dummy'],
+        }
 
     if opcode == 20:
         pass
 
     if opcode == 30:
-        temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'],
-                'ID': out['ID'], 'password': out['password']}
+        temp = {
+            's_addr': out['s_addr'],
+            'd_addr': out['d_addr'],
+            'ID': out['ID'],
+            'password': out['password'],
+        }
 
     if opcode == 40:
         pass
 
     if opcode == 50:
-        temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'],
-                'ID': out['ID'], 'file': out['file']}
+        temp = {
+            's_addr': out['s_addr'],
+            'd_addr': out['d_addr'],
+            'ID': out['ID'],
+            'file': out['file'],
+        }
 
     if opcode == 60:
-        temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'], 'buf': out["buf"],
-                'plaintext': out['plaintext'], 'file': out['file'], 'status': 'SUCCESSFULL'}
+        temp = {
+            's_addr': out['s_addr'],
+            'd_addr': out['d_addr'],
+            'buf': out['buf'],
+            'plaintext': out['plaintext'],
+            'file': out['file'],
+            'status': 'SUCCESSFULL',
+        }
         if out['status'] == -1:
             temp["status"] = "UNSUCCESSFULL"
 
     if opcode == 70:
-        temp = {'p': out['p'], 'q': out['q'],
-                'alpha': out['alpha'], 'Y': out['y']}
+        temp = {'p': out['p'], 'q': out['q'], 'alpha': out['alpha'], 'Y': out['y']}
 
     if opcode == 80:
-        temp = {'s_addr': out['s_addr'], 'd_addr': out['d_addr'], 'ID': out['ID'],
-                'plaintext': out['plaintext'], 'e': out['e'], 's': out['s']}
+        temp = {
+            's_addr': out['s_addr'],
+            'd_addr': out['d_addr'],
+            'ID': out['ID'],
+            'plaintext': out['plaintext'],
+            'e': out['e'],
+            's': out['s'],
+        }
 
     if opcode == 90:
         pass
@@ -341,6 +386,7 @@ def display(out, opcode=70):
         pass
 
     return temp
+
 
 # function to unpack the packet of fixed size with different parameters
 
@@ -363,8 +409,24 @@ def unpack_message(packet):
     # char buf[MAX_LEN] ==> part of transmitted file
     # short status ==> message status
     # long long  dummy ==> dummy variable in case you need
-    opcode, s_addr, d_addr, p, q, alpha, y,  plaintext, e, s, ID,  password, file, buf, status, dummy = unpack(
-        FORMAT, packet)
+    (
+        opcode,
+        s_addr,
+        d_addr,
+        p,
+        q,
+        alpha,
+        y,
+        plaintext,
+        e,
+        s,
+        ID,
+        password,
+        file,
+        buf,
+        status,
+        dummy,
+    ) = unpack(FORMAT, packet)
     out = {}
     out['opcode'] = opcode
     out['s_addr'] = str(ip_address(s_addr))
@@ -379,15 +441,34 @@ def unpack_message(packet):
     out['ID'] = ID.decode("ascii").rstrip('\x00')
     out['password'] = password.decode("ascii").rstrip('\x00')
     out['file'] = file.decode("ascii").rstrip('\x00')
-    out['buf'] = buf.decode("ascii").rstrip('\x00')
+    # out['buf'] = buf.decode("ascii").rstrip('\x00')
+    out['buf'] = buf
     out['status'] = status
     out['dummy'] = dummy.decode("ascii").rstrip('\x00')
     return out
 
+
 # Create a Packet with input arguments
 
 
-def create_message(opcode=10, s_addr="127.0.0.1", d_addr="127.0.0.1", p=134493393549233, q=21173393191, alpha=45595505996081, y=-1, plaintext="Hi!", e=-1, s="", ID="", password="", file="", buf="", status=0, dummy=""):
+def create_message(
+    opcode=10,
+    s_addr="127.0.0.1",
+    d_addr="127.0.0.1",
+    p=134493393549233,
+    q=21173393191,
+    alpha=45595505996081,
+    y=-1,
+    plaintext="Hi!",
+    e=-1,
+    s="",
+    ID="",
+    password="",
+    file="",
+    buf=b'',
+    status=0,
+    dummy="",
+):
     # Message components:
     # short opcode ==> opcode for a message
     # long long s_addr ==> source ipv4 address in integer form
@@ -427,8 +508,25 @@ def create_message(opcode=10, s_addr="127.0.0.1", d_addr="127.0.0.1", p=13449339
     alpha = str(alpha)
     y = str(y)
     e = str(e)
-    packet = pack(FORMAT, opcode, s_addr, d_addr, p.encode("ascii"), q.encode("ascii"), alpha.encode("ascii"), y.encode("ascii"), plaintext.encode("ascii"), e.encode("ascii"), s.encode(
-        "ascii"), ID.encode("ascii"),  password.encode("ascii"), file.encode("ascii"), buf.encode("ascii"), status, dummy.encode("ascii"))
+    packet = pack(
+        FORMAT,
+        opcode,
+        s_addr,
+        d_addr,
+        p.encode("ascii"),
+        q.encode("ascii"),
+        alpha.encode("ascii"),
+        y.encode("ascii"),
+        plaintext.encode("ascii"),
+        e.encode("ascii"),
+        s.encode("ascii"),
+        ID.encode("ascii"),
+        password.encode("ascii"),
+        file.encode("ascii"),
+        buf,
+        status,
+        dummy.encode("ascii"),
+    )
     return packet
 
 
